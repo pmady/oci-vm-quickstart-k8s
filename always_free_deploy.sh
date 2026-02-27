@@ -25,4 +25,4 @@ oci compute instance launch \
     --subnet-id $SUBNET_ID \
     --assign-public-ip true \
     --display-name "ACE-Free-VM" \
-    --image-id ocid1.image.oc1.iad.aaaaaaaav5... # Replace with latest Oracle Linux Image OCID for your region
+    --image-id ocid1.image.oc1.us-chicago-1.aaaaaaaa2zhuh4picmv5uqn4zlcgyzz7z2beuvxsizo5ggntovq65jxzxeua
