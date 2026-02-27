@@ -3,7 +3,7 @@
 # This script creates a VCN, Subnet, and an ARM-based VM at no cost.
 
 # Set your Compartment OCID here
-COMPARTMENT_ID="pavanmadduri27"
+COMPARTMENT_ID="ocid1.tenancy.oc1..aaaaaaaagp7ohfqddxvalhaxmt47i4v2ihd52ypyq544pffijpza4vignvnq"
 
 echo "1. Creating Virtual Cloud Network (VCN)..."
 VCN_ID=$(oci network vcn create --compartment-id $COMPARTMENT_ID --cidr-block "10.0.0.0/16" --display-name "ACE-Apprentice-VCN" --query 'data.id' --raw-output)
