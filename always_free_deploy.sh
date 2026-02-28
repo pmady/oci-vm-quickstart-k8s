@@ -20,7 +20,7 @@ echo "4. Launching Always-Free ARM Instance..."
 oci compute instance launch \
     --availability-domain $(oci iam availability-domain list --compartment-id $COMPARTMENT_ID --query 'data[0].name' --raw-output) \
     --compartment-id $COMPARTMENT_ID \
-    --shape "VM.Standard.A1.Flex" \
+    --shape "VM.Standard.E2.1.Micro" \
     --shape-config '{"ocpus":1,"memoryInGBs":6}' \
     --subnet-id $SUBNET_ID \
     --assign-public-ip true \
