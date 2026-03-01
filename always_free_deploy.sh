@@ -77,20 +77,18 @@ AD_NAME=$(oci iam availability-domain list \
     --query 'data[0].name' --raw-output)
 echo "   Availability Domain: $AD_NAME"
 
-# --- Step 5: Oracle Linux 9 x86_64 Image (us-chicago-1) ---
-# Oracle-Linux-9.7-2026.01.29-0
-IMAGE_ID="ocid1.image.oc1.us-chicago-1.aaaaaaaanfcyne2qvxh43flakb7lt2w2jwah3zb6nvjw3nyytyg2j74lpuiq"
-echo "5. Using Oracle Linux 9.7 image: $IMAGE_ID"
+# --- Step 5: Oracle Linux 9 aarch64 Image (us-chicago-1) ---
+# Oracle-Linux-9.7-aarch64-2026.01.29-0
+IMAGE_ID="ocid1.image.oc1.us-chicago-1.aaaaaaaa2zhuh4picmv5uqn4zlcgyzz7z2beuvxsizo5ggntovq65jxzxeua"
+echo "5. Using Oracle Linux 9.7 aarch64 image: $IMAGE_ID"
 
-# --- Step 6: Launch Always-Free Micro Instance ---
-echo "6. Launching Always-Free Instance (VM.Standard.E2.1.Micro, 1 OCPU, 1GB RAM)..."
-echo "   AD=$AD_NAME"
-echo "   SUBNET=$SUBNET_ID"
-echo "   IMAGE=$IMAGE_ID"
+# --- Step 6: Launch Always-Free ARM Instance ---
+echo "6. Launching Always-Free Instance (VM.Standard.A1.Flex, 1 OCPU, 6GB RAM)..."
 INSTANCE_ID=$(oci compute instance launch \
     --availability-domain "$AD_NAME" \
     --compartment-id "$COMPARTMENT_ID" \
-    --shape "VM.Standard.E2.1.Micro" \
+    --shape "VM.Standard.A1.Flex" \
+    --shape-config '{"ocpus":1,"memoryInGBs":6}' \
     --subnet-id "$SUBNET_ID" \
     --display-name "ACE-Free-VM" \
     --image-id "$IMAGE_ID" \
