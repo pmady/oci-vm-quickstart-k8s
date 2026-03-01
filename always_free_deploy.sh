@@ -56,7 +56,7 @@ echo "   Security list updated: $SL_ID"
 
 # --- Step 3: Create Subnet ---
 echo "3. Creating Subnet..."
-SUBNET_ID=$(oci network subnet create \
+SUBNET_RESPONSE=$(oci network subnet create \
     --compartment-id "$COMPARTMENT_ID" \
     --vcn-id "$VCN_ID" \
     --cidr-block "10.0.1.0/24" \
@@ -64,7 +64,11 @@ SUBNET_ID=$(oci network subnet create \
     --dns-label "acesubnet" \
     --security-list-ids "[\"$SL_ID\"]" \
     --query 'data.id' --raw-output)
+SUBNET_ID="$SUBNET_RESPONSE"
 echo "   Subnet created: $SUBNET_ID"
+echo "   Waiting for subnet to become available..."
+oci network subnet get --subnet-id "$SUBNET_ID" --wait-for-state AVAILABLE --wait-interval-seconds 5 > /dev/null 2>&1
+echo "   Subnet is available."
 
 # --- Step 4: Get Availability Domain ---
 echo "4. Looking up availability domain..."
@@ -80,6 +84,9 @@ echo "5. Using Oracle Linux 9.7 image: $IMAGE_ID"
 
 # --- Step 6: Launch Always-Free Micro Instance ---
 echo "6. Launching Always-Free Instance (VM.Standard.E2.1.Micro, 1 OCPU, 1GB RAM)..."
+echo "   AD=$AD_NAME"
+echo "   SUBNET=$SUBNET_ID"
+echo "   IMAGE=$IMAGE_ID"
 INSTANCE_ID=$(oci compute instance launch \
     --availability-domain "$AD_NAME" \
     --compartment-id "$COMPARTMENT_ID" \
