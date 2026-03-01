@@ -1,34 +1,18 @@
 #!/bin/bash
 # OCI "Always Free" Infrastructure Deployment Script
 # This script creates a VCN, Subnet, Security List,
-# and an ARM-based Ampere A1 VM at no cost.
+# and an E2.1.Micro VM at no cost.
 #
 # Prerequisites:
 #   - OCI CLI installed and configured (oci setup config)
-#   - An SSH public key file (default: ~/.ssh/id_rsa.pub)
 #
 # Usage:
-#   ./always_free_deploy.sh <COMPARTMENT_OCID> [SSH_PUBLIC_KEY_PATH]
+#   ./always_free_deploy.sh
 
 set -euo pipefail
 
-# --- Input Validation ---
-if [ -z "${1:-}" ]; then
-    echo "Usage: $0 <COMPARTMENT_OCID> [SSH_PUBLIC_KEY_PATH]"
-    echo ""
-    echo "  COMPARTMENT_OCID     Your OCI compartment or tenancy OCID"
-    echo "  SSH_PUBLIC_KEY_PATH  Path to SSH public key (default: ~/.ssh/id_rsa.pub)"
-    exit 1
-fi
-
-COMPARTMENT_ID="$1"
-SSH_KEY_FILE="${2:-$HOME/.ssh/id_rsa.pub}"
-
-if [ ! -f "$SSH_KEY_FILE" ]; then
-    echo "ERROR: SSH public key file not found: $SSH_KEY_FILE"
-    echo "Generate one with: ssh-keygen -t rsa -b 4096"
-    exit 1
-fi
+# Set your Compartment OCID here
+COMPARTMENT_ID="ocid1.tenancy.oc1..aaaaaaaagp7ohfqddxvalhaxmt47i4v2ihd52ypyq544pffijpza4vignvnq"
 
 # Verify OCI CLI is configured
 if ! command -v oci &> /dev/null; then
@@ -39,7 +23,6 @@ fi
 
 echo "=== OCI Always Free Infrastructure Deployment ==="
 echo "Compartment: $COMPARTMENT_ID"
-echo "SSH Key:     $SSH_KEY_FILE"
 echo ""
 
 # --- Step 1: Create VCN ---
@@ -112,7 +95,6 @@ INSTANCE_ID=$(oci compute instance launch \
     --subnet-id "$SUBNET_ID" \
     --display-name "ACE-Free-VM" \
     --image-id "$IMAGE_ID" \
-    --ssh-authorized-keys-file "$SSH_KEY_FILE" \
     --query 'data.id' --raw-output)
 echo "   Instance launched: $INSTANCE_ID"
 

@@ -5,19 +5,12 @@ This repository contains a bash script to provision a complete, **Always Free** 
 ## Prerequisites
 
 - **OCI CLI** installed and configured (`oci setup config`)
-- **SSH key pair** (default: `~/.ssh/id_rsa.pub`)
-- **Compartment OCID** (your tenancy or compartment OCID)
 
 ## Usage
 
 ```bash
 chmod +x always_free_deploy.sh
-./always_free_deploy.sh <COMPARTMENT_OCID> [SSH_PUBLIC_KEY_PATH]
-```
-
-**Example:**
-```bash
-./always_free_deploy.sh ocid1.tenancy.oc1..aaaaaaa... ~/.ssh/id_rsa.pub
+./always_free_deploy.sh
 ```
 
 ## Resources Created
@@ -31,9 +24,6 @@ chmod +x always_free_deploy.sh
 
 The script strictly uses the `VM.Standard.E2.1.Micro` shape and regional networking components that fall within the OCI Always Free tier limits, ensuring no usage charges are incurred.
 
-## Connect to Your Instance
+## After Deployment
 
-After deployment completes, SSH into the instance:
-```bash
-ssh opc@<PUBLIC_IP>
-```
+The script will output the instance ID and private IP once the VM is running.
