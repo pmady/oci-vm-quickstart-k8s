@@ -1,7 +1,12 @@
 #!/bin/bash
 # OCI "Always Free" Infrastructure Deployment Script
 # This script creates a VCN, Subnet, Security List,
-# and an E2.1.Micro VM at no cost.
+# and an ARM-based Ampere A1 VM at no cost.
+#
+# Always Free Resources Used:
+#   - VM.Standard.A1.Flex: 1 OCPU, 6GB RAM (free up to 4 OCPUs, 24GB)
+#   - Boot Volume: 47GB default (free up to 200GB total)
+#   - VCN, Subnet, Security List: Always Free
 #
 # Prerequisites:
 #   - OCI CLI installed and configured (oci setup config)
