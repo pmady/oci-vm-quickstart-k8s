@@ -73,19 +73,41 @@ AD_NAME=$(oci iam availability-domain list \
     --query 'data[0].name' --raw-output)
 echo "   Availability Domain: $AD_NAME"
 
-# --- Step 5: Get Latest Oracle Linux x86_64 Image ---
-echo "5. Looking up latest Oracle Linux x86_64 image..."
+# --- Step 5: Get Latest Oracle Linux 9 Image compatible with E2.1.Micro ---
+echo "5. Looking up latest Oracle Linux 9 image for E2.1.Micro..."
 IMAGE_ID=$(oci compute image list \
     --compartment-id "$COMPARTMENT_ID" \
     --operating-system "Oracle Linux" \
     --operating-system-version "9" \
+    --shape "VM.Standard.E2.1.Micro" \
     --sort-by TIMECREATED \
     --sort-order DESC \
-    --query "data[?!contains(\"display-name\", 'aarch64')] | [0].id" \
-    --raw-output)
+    --limit 1 \
+    --query 'data[0].id' --raw-output)
 
-if [ -z "$IMAGE_ID" ] || [ "$IMAGE_ID" = "None" ]; then
-    echo "ERROR: Could not find an Oracle Linux 9 x86_64 image. Check your region/compartment."
+if [ -z "$IMAGE_ID" ] || [ "$IMAGE_ID" = "None" ] || [ "$IMAGE_ID" = "null" ]; then
+    echo "   --shape filter returned no results, trying without filter..."
+    # Fallback: get all OL9 images and pick one that isn't aarch64
+    IMAGE_ID=$(oci compute image list \
+        --compartment-id "$COMPARTMENT_ID" \
+        --operating-system "Oracle Linux" \
+        --operating-system-version "9" \
+        --sort-by TIMECREATED \
+        --sort-order DESC \
+        --all \
+        --output json | python3 -c "
+import sys, json
+data = json.load(sys.stdin).get('data', [])
+for img in data:
+    name = img.get('display-name', '')
+    if 'aarch64' not in name.lower():
+        print(img['id'])
+        break
+")
+fi
+
+if [ -z "$IMAGE_ID" ] || [ "$IMAGE_ID" = "None" ] || [ "$IMAGE_ID" = "null" ]; then
+    echo "ERROR: Could not find a compatible Oracle Linux 9 image."
     exit 1
 fi
 echo "   Image: $IMAGE_ID"
