@@ -78,14 +78,14 @@ echo "5. Looking up latest Oracle Linux x86_64 image..."
 IMAGE_ID=$(oci compute image list \
     --compartment-id "$COMPARTMENT_ID" \
     --operating-system "Oracle Linux" \
-    --operating-system-version "8" \
+    --operating-system-version "9" \
     --sort-by TIMECREATED \
     --sort-order DESC \
     --query "data[?!contains(\"display-name\", 'aarch64')] | [0].id" \
     --raw-output)
 
 if [ -z "$IMAGE_ID" ] || [ "$IMAGE_ID" = "None" ]; then
-    echo "ERROR: Could not find an Oracle Linux 8 x86_64 image. Check your region/compartment."
+    echo "ERROR: Could not find an Oracle Linux 9 x86_64 image. Check your region/compartment."
     exit 1
 fi
 echo "   Image: $IMAGE_ID"
