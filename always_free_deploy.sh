@@ -79,11 +79,15 @@ IMAGE_ID=$(oci compute image list \
     --compartment-id "$COMPARTMENT_ID" \
     --operating-system "Oracle Linux" \
     --operating-system-version "8" \
-    --shape "VM.Standard.E2.1.Micro" \
     --sort-by TIMECREATED \
     --sort-order DESC \
     --limit 1 \
     --query 'data[0].id' --raw-output)
+
+if [ -z "$IMAGE_ID" ] || [ "$IMAGE_ID" = "None" ]; then
+    echo "ERROR: Could not find an Oracle Linux 8 image. Check your region/compartment."
+    exit 1
+fi
 echo "   Image: $IMAGE_ID"
 
 # --- Step 6: Launch Always-Free Micro Instance ---
