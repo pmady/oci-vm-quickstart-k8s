@@ -51,7 +51,7 @@ oci network security-list update \
     --egress-security-rules '[
         {"destination":"0.0.0.0/0","protocol":"all"}
     ]' \
-    --force
+    --force > /dev/null
 echo "   Security list updated: $SL_ID"
 
 # --- Step 3: Create Subnet ---
@@ -67,8 +67,8 @@ SUBNET_RESPONSE=$(oci network subnet create \
 SUBNET_ID="$SUBNET_RESPONSE"
 echo "   Subnet created: $SUBNET_ID"
 echo "   Waiting for subnet to become available..."
-oci network subnet get --subnet-id "$SUBNET_ID" --wait-for-state AVAILABLE --wait-interval-seconds 5 > /dev/null 2>&1
-echo "   Subnet is available."
+sleep 15
+echo "   Subnet ready."
 
 # --- Step 4: Get Availability Domain ---
 echo "4. Looking up availability domain..."
