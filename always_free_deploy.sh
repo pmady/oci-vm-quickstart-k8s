@@ -73,19 +73,19 @@ AD_NAME=$(oci iam availability-domain list \
     --query 'data[0].name' --raw-output)
 echo "   Availability Domain: $AD_NAME"
 
-# --- Step 5: Get Latest Oracle Linux Image ---
-echo "5. Looking up latest Oracle Linux image..."
+# --- Step 5: Get Latest Oracle Linux x86_64 Image ---
+echo "5. Looking up latest Oracle Linux x86_64 image..."
 IMAGE_ID=$(oci compute image list \
     --compartment-id "$COMPARTMENT_ID" \
     --operating-system "Oracle Linux" \
     --operating-system-version "8" \
     --sort-by TIMECREATED \
     --sort-order DESC \
-    --limit 1 \
-    --query 'data[0].id' --raw-output)
+    --query "data[?!contains(\"display-name\", 'aarch64')] | [0].id" \
+    --raw-output)
 
 if [ -z "$IMAGE_ID" ] || [ "$IMAGE_ID" = "None" ]; then
-    echo "ERROR: Could not find an Oracle Linux 8 image. Check your region/compartment."
+    echo "ERROR: Could not find an Oracle Linux 8 x86_64 image. Check your region/compartment."
     exit 1
 fi
 echo "   Image: $IMAGE_ID"
