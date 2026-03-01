@@ -87,18 +87,41 @@ echo "   Availability Domain: $AD_NAME"
 IMAGE_ID="ocid1.image.oc1.us-chicago-1.aaaaaaaa2zhuh4picmv5uqn4zlcgyzz7z2beuvxsizo5ggntovq65jxzxeua"
 echo "5. Using Oracle Linux 9.7 aarch64 image: $IMAGE_ID"
 
-# --- Step 6: Launch Always-Free ARM Instance ---
+# --- Step 6: Launch Always-Free ARM Instance (with retry for capacity) ---
 echo "6. Launching Always-Free Instance (VM.Standard.A1.Flex, 1 OCPU, 6GB RAM)..."
-INSTANCE_ID=$(oci compute instance launch \
-    --availability-domain "$AD_NAME" \
-    --compartment-id "$COMPARTMENT_ID" \
-    --shape "VM.Standard.A1.Flex" \
-    --shape-config '{"ocpus":1,"memoryInGBs":6}' \
-    --subnet-id "$SUBNET_ID" \
-    --display-name "ACE-Free-VM" \
-    --image-id "$IMAGE_ID" \
-    --query 'data.id' --raw-output)
-echo "   Instance launched: $INSTANCE_ID"
+echo "   NOTE: A1.Flex capacity is limited. Will retry every 60s if 'Out of host capacity'."
+MAX_RETRIES=60
+RETRY_COUNT=0
+INSTANCE_ID=""
+
+while [ -z "$INSTANCE_ID" ] && [ "$RETRY_COUNT" -lt "$MAX_RETRIES" ]; do
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    LAUNCH_OUTPUT=$(oci compute instance launch \
+        --availability-domain "$AD_NAME" \
+        --compartment-id "$COMPARTMENT_ID" \
+        --shape "VM.Standard.A1.Flex" \
+        --shape-config '{"ocpus":1,"memoryInGBs":6}' \
+        --subnet-id "$SUBNET_ID" \
+        --display-name "ACE-Free-VM" \
+        --image-id "$IMAGE_ID" \
+        --query 'data.id' --raw-output 2>&1) || true
+
+    if [[ "$LAUNCH_OUTPUT" == ocid1.instance.* ]]; then
+        INSTANCE_ID="$LAUNCH_OUTPUT"
+        echo "   Instance launched: $INSTANCE_ID"
+    elif echo "$LAUNCH_OUTPUT" | grep -q "Out of host capacity"; then
+        echo "   Attempt $RETRY_COUNT/$MAX_RETRIES: Out of host capacity. Retrying in 60s..."
+        sleep 60
+    else
+        echo "   ERROR: $LAUNCH_OUTPUT"
+        exit 1
+    fi
+done
+
+if [ -z "$INSTANCE_ID" ]; then
+    echo "ERROR: Failed to launch instance after $MAX_RETRIES attempts."
+    exit 1
+fi
 
 # --- Step 7: Wait for Instance and Get Private IP ---
 echo "7. Waiting for instance to reach RUNNING state..."
