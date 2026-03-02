@@ -1,7 +1,9 @@
 #!/bin/bash
 # OCI "Always Free" Infrastructure Deployment Script
-# This script creates a VCN, Subnet, Security List,
-# and an ARM-based Ampere A1 VM at no cost.
+# Creates a VCN, Subnet, Security List, and an Always Free VM instance.
+#
+# The script tries ALL availability domains to maximize the chance of
+# finding capacity for Always Free ARM (A1.Flex) instances.
 #
 # Always Free Resources Used:
 #   - VM.Standard.A1.Flex: 1 OCPU, 6GB RAM (free up to 4 OCPUs, 24GB)
@@ -16,18 +18,21 @@
 
 set -euo pipefail
 
-# Set your Compartment OCID here
 COMPARTMENT_ID="ocid1.tenancy.oc1..aaaaaaaagp7ohfqddxvalhaxmt47i4v2ihd52ypyq544pffijpza4vignvnq"
+SHAPE="VM.Standard.A1.Flex"
+SHAPE_CONFIG='{"ocpus":1,"memoryInGBs":6}'
+# Oracle-Linux-9.7-aarch64-2026.01.29-0 (us-chicago-1)
+IMAGE_ID="ocid1.image.oc1.us-chicago-1.aaaaaaaa2zhuh4picmv5uqn4zlcgyzz7z2beuvxsizo5ggntovq65jxzxeua"
 
-# Verify OCI CLI is configured
 if ! command -v oci &> /dev/null; then
-    echo "ERROR: OCI CLI is not installed. Install it from:"
-    echo "  https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/cliinstall.htm"
+    echo "ERROR: OCI CLI is not installed."
     exit 1
 fi
 
 echo "=== OCI Always Free Infrastructure Deployment ==="
+echo "Region:      us-chicago-1"
 echo "Compartment: $COMPARTMENT_ID"
+echo "Shape:       $SHAPE"
 echo ""
 
 # --- Step 1: Create VCN ---
@@ -40,8 +45,8 @@ VCN_ID=$(oci network vcn create \
     --query 'data.id' --raw-output)
 echo "   VCN created: $VCN_ID"
 
-# --- Step 2: Update Default Security List (allow SSH and HTTP/HTTPS ingress) ---
-echo "2. Configuring security list (SSH, HTTP, HTTPS ingress)..."
+# --- Step 2: Update Default Security List ---
+echo "2. Configuring security list (SSH, HTTP, HTTPS, K8s API)..."
 SL_ID=$(oci network vcn get --vcn-id "$VCN_ID" --query 'data."default-security-list-id"' --raw-output)
 oci network security-list update \
     --security-list-id "$SL_ID" \
@@ -61,7 +66,7 @@ echo "   Security list updated: $SL_ID"
 
 # --- Step 3: Create Subnet ---
 echo "3. Creating Subnet..."
-SUBNET_RESPONSE=$(oci network subnet create \
+SUBNET_ID=$(oci network subnet create \
     --compartment-id "$COMPARTMENT_ID" \
     --vcn-id "$VCN_ID" \
     --cidr-block "10.0.1.0/24" \
@@ -69,63 +74,68 @@ SUBNET_RESPONSE=$(oci network subnet create \
     --dns-label "acesubnet" \
     --security-list-ids "[\"$SL_ID\"]" \
     --query 'data.id' --raw-output)
-SUBNET_ID="$SUBNET_RESPONSE"
 echo "   Subnet created: $SUBNET_ID"
 echo "   Waiting for subnet to become available..."
-sleep 15
+sleep 10
 echo "   Subnet ready."
 
-# --- Step 4: Get Availability Domain ---
-echo "4. Looking up availability domain..."
-AD_NAME=$(oci iam availability-domain list \
+# --- Step 4: Get ALL Availability Domains ---
+echo "4. Looking up all availability domains..."
+readarray -t AD_LIST < <(oci iam availability-domain list \
     --compartment-id "$COMPARTMENT_ID" \
-    --query 'data[0].name' --raw-output)
-echo "   Availability Domain: $AD_NAME"
+    --query 'data[*].name' --raw-output | tr -d '[]"' | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$')
+echo "   Found ${#AD_LIST[@]} availability domain(s): ${AD_LIST[*]}"
 
-# --- Step 5: Oracle Linux 9 aarch64 Image (us-chicago-1) ---
-# Oracle-Linux-9.7-aarch64-2026.01.29-0
-IMAGE_ID="ocid1.image.oc1.us-chicago-1.aaaaaaaa2zhuh4picmv5uqn4zlcgyzz7z2beuvxsizo5ggntovq65jxzxeua"
-echo "5. Using Oracle Linux 9.7 aarch64 image: $IMAGE_ID"
+# --- Step 5: Launch Instance (try all ADs with retry) ---
+echo "5. Launching Always-Free Instance ($SHAPE, 1 OCPU, 6GB RAM)..."
+echo "   Will try all availability domains. Retries every 30s for up to 30 min."
 
-# --- Step 6: Launch Always-Free ARM Instance (with retry for capacity) ---
-echo "6. Launching Always-Free Instance (VM.Standard.A1.Flex, 1 OCPU, 6GB RAM)..."
-echo "   NOTE: A1.Flex capacity is limited. Will retry every 60s if 'Out of host capacity'."
-MAX_RETRIES=60
-RETRY_COUNT=0
+MAX_ROUNDS=60
 INSTANCE_ID=""
 
-while [ -z "$INSTANCE_ID" ] && [ "$RETRY_COUNT" -lt "$MAX_RETRIES" ]; do
-    RETRY_COUNT=$((RETRY_COUNT + 1))
-    LAUNCH_OUTPUT=$(oci compute instance launch \
-        --availability-domain "$AD_NAME" \
-        --compartment-id "$COMPARTMENT_ID" \
-        --shape "VM.Standard.A1.Flex" \
-        --shape-config '{"ocpus":1,"memoryInGBs":6}' \
-        --subnet-id "$SUBNET_ID" \
-        --display-name "ACE-Free-VM" \
-        --image-id "$IMAGE_ID" \
-        --query 'data.id' --raw-output 2>&1) || true
+for ((ROUND=1; ROUND<=MAX_ROUNDS; ROUND++)); do
+    for AD_NAME in "${AD_LIST[@]}"; do
+        echo "   [Round $ROUND] Trying AD: $AD_NAME ..."
+        LAUNCH_OUTPUT=$(oci compute instance launch \
+            --availability-domain "$AD_NAME" \
+            --compartment-id "$COMPARTMENT_ID" \
+            --shape "$SHAPE" \
+            --shape-config "$SHAPE_CONFIG" \
+            --subnet-id "$SUBNET_ID" \
+            --display-name "ACE-Free-VM" \
+            --image-id "$IMAGE_ID" \
+            --query 'data.id' --raw-output 2>&1) || true
 
-    if [[ "$LAUNCH_OUTPUT" == ocid1.instance.* ]]; then
-        INSTANCE_ID="$LAUNCH_OUTPUT"
-        echo "   Instance launched: $INSTANCE_ID"
-    elif echo "$LAUNCH_OUTPUT" | grep -q "Out of host capacity"; then
-        echo "   Attempt $RETRY_COUNT/$MAX_RETRIES: Out of host capacity. Retrying in 60s..."
-        sleep 60
-    else
-        echo "   ERROR: $LAUNCH_OUTPUT"
-        exit 1
+        if [[ "$LAUNCH_OUTPUT" == ocid1.instance.* ]]; then
+            INSTANCE_ID="$LAUNCH_OUTPUT"
+            echo "   SUCCESS! Instance launched in $AD_NAME"
+            echo "   Instance ID: $INSTANCE_ID"
+            break 2
+        elif echo "$LAUNCH_OUTPUT" | grep -q "Out of host capacity"; then
+            echo "   -> Out of host capacity in $AD_NAME"
+        else
+            echo "   -> Error: $LAUNCH_OUTPUT"
+        fi
+    done
+
+    if [ -z "$INSTANCE_ID" ]; then
+        echo "   All ADs exhausted. Waiting 30s before next round..."
+        sleep 30
     fi
 done
 
 if [ -z "$INSTANCE_ID" ]; then
-    echo "ERROR: Failed to launch instance after $MAX_RETRIES attempts."
+    echo ""
+    echo "ERROR: Could not find capacity after $MAX_ROUNDS rounds."
+    echo "TIP:   A1.Flex capacity in us-chicago-1 is limited."
+    echo "       Try again during off-peak hours (early morning US time)."
     exit 1
 fi
 
-# --- Step 7: Wait for Instance and Get Private IP ---
-echo "7. Waiting for instance to reach RUNNING state..."
-oci compute instance get --instance-id "$INSTANCE_ID" --wait-for-state RUNNING --wait-interval-seconds 10 > /dev/null 2>&1 || true
+# --- Step 6: Wait for Instance and Get IP ---
+echo "6. Waiting for instance to reach RUNNING state..."
+oci compute instance get --instance-id "$INSTANCE_ID" \
+    --wait-for-state RUNNING --wait-interval-seconds 10 > /dev/null 2>&1 || true
 
 PRIVATE_IP=$(oci compute instance list-vnics \
     --instance-id "$INSTANCE_ID" \
@@ -135,3 +145,5 @@ echo ""
 echo "=== Deployment Complete ==="
 echo "Instance ID:  $INSTANCE_ID"
 echo "Private IP:   $PRIVATE_IP"
+echo "Shape:        $SHAPE (Always Free)"
+echo "Image:        Oracle Linux 9.7 (aarch64)"
